@@ -19,7 +19,7 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            overflow: hidden;
+            overflow-x: hidden;
             gap: 15px;
             padding: 10px;
             flex-direction: row;
@@ -182,6 +182,7 @@
             cursor: pointer;
         }
 
+        /* LETRERO DE RÉCORD CORREGIDO */
         #record-alert {
             position: absolute;
             top: 90px;
@@ -189,18 +190,19 @@
             transform: translateX(-50%);
             background-color: #ffcc00;
             color: #000;
-            padding: 5px 15px;
+            padding: 8px 20px;
             font-weight: bold;
-            font-size: 1.1rem;
+            font-size: 1.2rem;
             border: 2px solid #fff;
             box-shadow: 3px 3px 0 #000;
             display: none;
-            z-index: 4;
+            z-index: 20;
+            white-space: nowrap;
             animation: blink 0.5s infinite alternate;
         }
         @keyframes blink { from { opacity: 1; } to { opacity: 0.5; } }
 
-        /* RESPONSIVIDAD PARA PANTALLAS CHICAS / MÓVILES */
+        /* RESPONSIVIDAD GENERAL MÓVIL Y VERTICAL */
         @media (max-width: 1100px) {
             body {
                 flex-direction: column;
@@ -216,9 +218,46 @@
             #sidebar-scores {
                 width: 100%;
                 max-width: 800px;
-                height: 250px;
+                height: 220px;
             }
         }
+
+        /* OPTIMIZACIÓN EXCLUSIVA PARA CELULAR EN HORIZONTAL */
+        @media (max-height: 600px) and (orientation: landscape) {
+            body {
+                flex-direction: row;
+                padding: 5px;
+                gap: 10px;
+                min-height: 100vh;
+                overflow: hidden;
+            }
+            #game-container {
+                width: 70vw;
+                height: 95vh;
+                aspect-ratio: auto;
+            }
+            #sidebar-scores {
+                width: 25vw;
+                height: 95vh;
+                padding: 8px;
+            }
+            #sidebar-scores h2 {
+                font-size: 1rem;
+                margin-bottom: 5px;
+                padding-bottom: 5px;
+            }
+            .score-item {
+                font-size: 0.85rem;
+                padding: 4px 2px;
+            }
+            .screen h1 { font-size: 1.8rem; }
+            .screen p { font-size: 0.9rem; margin-bottom: 8px; }
+            .retro-input { font-size: 1rem; padding: 5px; margin-bottom: 10px; width: 180px; }
+            .btn { font-size: 0.9rem; padding: 6px 15px; margin: 4px; }
+            #record-alert { font-size: 1rem; top: 60px; padding: 4px 10px; }
+            .hud-panel, #btn-pause-trigger { font-size: 0.8rem; padding: 4px 8px; }
+        }
+
         @media (max-width: 600px) {
             .screen h1 { font-size: 2rem; }
             .btn { font-size: 1rem; padding: 8px 16px; }
@@ -400,11 +439,9 @@
             } catch(e) { console.log(e); }
         }
 
-        // Música de Fondo Estilo "8-bit Caza Marcha" muy suave
         function startBGM() {
             stopBGM();
             let noteIndex = 0;
-            // Notas base repetitivas alegres de marcha retro
             let notes = [150, 180, 150, 220, 200, 180, 150, 130]; 
             
             bgmInterval = setInterval(() => {
@@ -415,10 +452,10 @@
                     osc.connect(gain);
                     gain.connect(audioCtx.destination);
                     
-                    osc.type = 'triangle'; // Sonido suave amortiguado
+                    osc.type = 'triangle';
                     osc.frequency.setValueAtTime(notes[noteIndex % notes.length], audioCtx.currentTime);
                     
-                    gain.gain.setValueAtTime(0.04, audioCtx.currentTime); // Volumen bajo de fondo
+                    gain.gain.setValueAtTime(0.04, audioCtx.currentTime); 
                     gain.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
                     
                     osc.start();
@@ -432,14 +469,12 @@
             if (bgmInterval) clearInterval(bgmInterval);
         }
 
-        // --- MANEJO DE SELECCIÓN DE MODO DE JUEGO ---
         function setMode(multi) {
             initAudio();
             isMultiplayer = multi;
             if (isMultiplayer) {
                 p2NameBox.style.display = 'flex';
                 p2Hud.style.display = 'block';
-                // Cambiar el valor por defecto si es primera vez
                 if(nameInput.value === "PLAYER 1") nameInput.value = "CAZADOR 1";
             } else {
                 p2NameBox.style.display = 'none';
@@ -474,7 +509,7 @@
             lastSpawnTime = performance.now();
             lastHeartSpawnTime = performance.now();
 
-            p2Mira.x = 500; p2Mira.y = 300; // Reset posición mira P2
+            p2Mira.x = 500; p2Mira.y = 300; 
 
             updateHUD();
             startTimer();
@@ -510,11 +545,15 @@
             for(let i=0; i<lives; i++) hStr += '❤️';
             livesPanel.innerText = hStr || '💀';
 
-            // Alerta de récord en vivo
+            // ALERTA DE RÉCORD MEJORADA CON TEMPORIZADOR
             let maxActual = Math.max(score, p2Score);
             if (maxActual > globalHighScore && globalHighScore > 0 && !recordBrokenEventTriggered) {
                 recordBrokenEventTriggered = true;
                 recordAlert.style.display = 'block';
+                // Se oculta automáticamente a los 3 segundos para que no estorbe
+                setTimeout(() => {
+                    recordAlert.style.display = 'none';
+                }, 3000);
             }
         }
 
@@ -547,11 +586,11 @@
         function showScoresMenu() { renderLeaderboardLists(); scoresScreen.style.display = 'flex'; }
         function hideScoresMenu() { scoresScreen.style.display = 'none'; }
 
-        // --- CAPTURA DE TECLADO (MIRA VIRTUAL JUGADOR 2) ---
+        // --- CAPTURA DE TECLADO ---
         window.addEventListener('keydown', (e) => {
             keys[e.code] = true;
             if (e.code === 'Space' && isPlaying && !isPaused && isMultiplayer) {
-                e.preventDefault(); // Evita scroll de pantalla
+                e.preventDefault(); 
                 executePlayer2Shot();
             }
         });
@@ -633,7 +672,7 @@
             ctx.fillStyle = "#dddddd"; ctx.fillRect(abuela.x - 15, abuela.y - 33, 30, 12);
             ctx.fillStyle = "#555555"; ctx.fillRect(abuela.x + 5, abuela.y + 10, 35, 8); 
 
-            // 5. Dibujar Mira del Jugador 2 (Si aplica)
+            // 5. Mira P2
             if (isMultiplayer) {
                 ctx.strokeStyle = "#00ffcc"; ctx.lineWidth = 3;
                 ctx.beginPath();
@@ -641,7 +680,6 @@
                 ctx.moveTo(p2Mira.x - p2Mira.size, p2Mira.y); ctx.lineTo(p2Mira.x + p2Mira.size, p2Mira.y);
                 ctx.moveTo(p2Mira.x, p2Mira.y - p2Mira.size); ctx.lineTo(p2Mira.x, p2Mira.y + p2Mira.size);
                 ctx.stroke();
-                // Nombre indicador arriba de su mira
                 ctx.fillStyle = "#00ffcc"; ctx.font = "bold 12px monospace";
                 ctx.fillText(activeName2, p2Mira.x - 25, p2Mira.y - 22);
             }
@@ -658,13 +696,12 @@
 
         function spawnHeart() { hearts.push({ x: Math.random() * 700 + 50, y: -20, speed: 1.5 + Math.random() * 1.5 }); }
 
-        // --- EVENTO DISPARO JUGADOR 1 (SOPORTA RATÓN Y TOQUES TÁCTILES) ---
+        // --- ENTRADA TÁCTIL Y RATÓN ---
         function handleInputShot(clientX, clientY) {
             if (!isPlaying || isPaused) return;
-            initAudio(); // Resguardo interacción navegadores
+            initAudio(); 
 
             const rect = canvas.getBoundingClientRect();
-            // Regla de tres para escalar coordenadas por si la pantalla se achica responsivamente
             const mouseX = ((clientX - rect.left) / rect.width) * canvas.width;
             const mouseY = ((clientY - rect.top) / rect.height) * canvas.height;
 
@@ -744,7 +781,7 @@
             }
         }
 
-        // --- LOCALSTORAGE ---
+        // --- SISTEMA DE RÉCORDS REPARADO Y COMPLETADO ---
         function loadLeaderboard() {
             const stored = localStorage.getItem('chicken_hunter_scores');
             if (stored) {
@@ -762,7 +799,7 @@
             if(name === "ANÓNIMO" || name === "") return;
             currentLeaderboard.push({ name: name, score: finalScore });
             currentLeaderboard.sort((a, b) => b.score - a.score);
-            if (currentLeaderboard.length > 15) currentLeaderboard.pop();
+            if (currentLeaderboard.length > 10) currentLeaderboard.pop(); // Guardar solo el Top 10
             localStorage.setItem('chicken_hunter_scores', JSON.stringify(currentLeaderboard));
             globalHighScore = currentLeaderboard[0].score;
             renderLeaderboardLists();
@@ -771,13 +808,18 @@
         function renderLeaderboardLists() {
             const sidebar = document.getElementById('sidebar-list');
             const menuList = document.getElementById('menu-score-list');
+            
             let htmlContent = "";
-            currentLeaderboard.forEach((entry, index) => {
-                const isTop = index < 3 ? "top-three" : "";
-                htmlContent += `<li class="score-item ${isTop}"><span>${index + 1}. ${entry.name}</span><span>${String(entry.score).padStart(4, '0')} pts</span></li>`;
+            currentLeaderboard.forEach((item, index) => {
+                let isTop = index < 3 ? "top-three" : "";
+                htmlContent += `<li class="score-item ${isTop}">
+                    <span>${index + 1}. ${item.name}</span>
+                    <span>${String(item.score).padStart(4, '0')}</span>
+                </li>`;
             });
-            sidebar.innerHTML = htmlContent;
-            menuList.innerHTML = htmlContent;
+
+            if(sidebar) sidebar.innerHTML = htmlContent;
+            if(menuList) menuList.innerHTML = htmlContent;
         }
     </script>
 </body>
