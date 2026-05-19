@@ -293,14 +293,14 @@
                     <input type="text" id="player-name" class="retro-input" maxlength="10" value="PLAYER 1">
                 </div>
                 <div id="p2-name-box" style="display: none; flex-direction: column; align-items: center;">
-                    <label style="color: #00ffcc; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem;">CAZADOR 2 (WASD + ESPACIO):</label>
+                    <label style="color: #00ffcc; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem;">CAZADOR 2 (WASD / MANDO):</label>
                     <input type="text" id="player2-name" class="retro-input" maxlength="10" value="PLAYER 2" style="border-color: #00ffcc;">
                 </div>
             </div>
 
             <div style="margin-top: 10px;">
                 <button class="btn" onclick="setMode(false)">SOLO</button>
-                <button class="btn" onclick="setMode(true)" style="background-color: #0099ff; box-shadow: 0 5px #0066cc;">2 JUGADORES (LOCAL)</button>
+                <button class="btn" onclick="setMode(true)" style="background-color: #0099ff; box-shadow: 0 5px #0066cc;">2 JUGADORES (LOCAL/MANDO)</button>
             </div>
             <div>
                 <button class="btn" style="background-color: #555; box-shadow: 0 5px #333;" onclick="showScoresMenu()">VER SCORES</button>
@@ -348,6 +348,9 @@
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
         
+        // URL de tu API Online (Sustitúyela cuando montes tu backend)
+        const API_URL = "https://tu-dominio.com/api/scores.php";
+
         // Screens
         const startScreen = document.getElementById('start-screen');
         const gameOverScreen = document.getElementById('game-over-screen');
@@ -376,9 +379,12 @@
         let activeName1 = "PLAYER 1";
         let activeName2 = "PLAYER 2";
 
-        // Coordenadas Mira Virtual Jugador 2 (Teclado)
+        // Coordenadas Mira Virtual Jugador 2 (Teclado o Mando)
         let p2Mira = { x: 500, y: 300, size: 30, speed: 8 };
         let keys = {};
+        
+        // Flag para el botón de disparo del mando (evitar ráfagas infinitas)
+        let gamepadShotPressed = false;
 
         const abuela = { x: 400, y: 530, width: 50, height: 70 };
 
@@ -483,6 +489,49 @@
             initGame();
         }
 
+        // --- MANEJO DE MANDOS (GAMEPAD API) ---
+        window.addEventListener("gamepadconnected", (e) => {
+            console.log("¡Mando detectado, papá!:", e.gamepad.id);
+        });
+
+        function checkGamepadInput() {
+            if (!isMultiplayer) return;
+            
+            const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+            const gp = gamepads[0]; // Mapeamos el primer control disponible para el P2
+            
+            if (!gp) return;
+
+            // 1. Mover la mira con la Palanca Izquierda (Ejes 0 y 1)
+            const axisX = gp.axes[0];
+            const axisY = gp.axes[1];
+            const zonaMuerta = 0.15; // Evita deriva si la palanca está floja
+
+            if (Math.abs(axisX) > zonaMuerta) {
+                p2Mira.x += axisX * p2Mira.speed;
+            }
+            if (Math.abs(axisY) > zonaMuerta) {
+                p2Mira.y += axisY * p2Mira.speed;
+            }
+
+            // Limitar los bordes de la pantalla
+            p2Mira.x = Math.max(20, Math.min(780, p2Mira.x));
+            p2Mira.y = Math.max(20, Math.min(580, p2Mira.y));
+
+            // 2. Disparar con el Botón 'A' (Índice 0) o Gatillo RT (Índice 7)
+            const botonDisparo = gp.buttons[0].pressed || gp.buttons[7].pressed;
+            
+            if (botonDisparo) {
+                if (!gamepadShotPressed && isPlaying && !isPaused) {
+                    executePlayer2Shot();
+                    gamepadShotPressed = true; // Bloquea hasta que suelte el botón
+                }
+            } else {
+                gamepadShotPressed = false;
+            }
+        }
+
+        // Cargar líderes al arrancar la app
         loadLeaderboard();
 
         function initGame() {
@@ -545,15 +594,11 @@
             for(let i=0; i<lives; i++) hStr += '❤️';
             livesPanel.innerText = hStr || '💀';
 
-            // ALERTA DE RÉCORD MEJORADA CON TEMPORIZADOR
             let maxActual = Math.max(score, p2Score);
             if (maxActual > globalHighScore && globalHighScore > 0 && !recordBrokenEventTriggered) {
                 recordBrokenEventTriggered = true;
                 recordAlert.style.display = 'block';
-                // Se oculta automáticamente a los 3 segundos para que no estorbe
-                setTimeout(() => {
-                    recordAlert.style.display = 'none';
-                }, 3000);
+                setTimeout(() => { recordAlert.style.display = 'none'; }, 3000);
             }
         }
 
@@ -596,7 +641,7 @@
         });
         window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 
-        function updateP2Mira() {
+        function updateP2MiraTeclado() {
             if (keys['KeyW'] || keys['ArrowUp']) p2Mira.y = Math.max(20, p2Mira.y - p2Mira.speed);
             if (keys['KeyS'] || keys['ArrowDown']) p2Mira.y = Math.min(580, p2Mira.y + p2Mira.speed);
             if (keys['KeyA'] || keys['ArrowLeft']) p2Mira.x = Math.max(20, p2Mira.x - p2Mira.speed);
@@ -632,7 +677,10 @@
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            if (isMultiplayer) updateP2Mira();
+            if (isMultiplayer) {
+                updateP2MiraTeclado(); // Lee teclado alternativo
+                checkGamepadInput();   // Lee el control físico de forma prioritaria si existe
+            }
 
             if (timestamp - lastSpawnTime > spawnInterval) { spawnChicken(); lastSpawnTime = timestamp; }
             if (timestamp - lastHeartSpawnTime > 13000) { if (lives < 3) spawnHeart(); lastHeartSpawnTime = timestamp; }
@@ -781,44 +829,70 @@
             }
         }
 
-        // --- SISTEMA DE RÉCORDS REPARADO Y COMPLETADO ---
-        function loadLeaderboard() {
-            const stored = localStorage.getItem('chicken_hunter_scores');
-            if (stored) {
-                currentLeaderboard = JSON.parse(stored);
-                if (currentLeaderboard.length > 0) globalHighScore = currentLeaderboard[0].score;
-            } else {
-                currentLeaderboard = [{ name: "ABUELA", score: 250 }, { name: "FER", score: 150 }, { name: "CHICK", score: 50 }];
-                localStorage.setItem('chicken_hunter_scores', JSON.stringify(currentLeaderboard));
-                globalHighScore = 250;
+        // --- SISTEMA DE RÉCORDS ONLINE COMPATIBLE ---
+        async function loadLeaderboard() {
+            // Intenta descargar de la base de datos online
+            try {
+                const response = await fetch(API_URL);
+                if (response.ok) {
+                    currentLeaderboard = await response.json();
+                    localStorage.setItem('chicken_hunter_scores', JSON.stringify(currentLeaderboard));
+                }
+            } catch (error) {
+                console.log("Servidor offline, tirando de LocalStorage.");
+                const stored = localStorage.getItem('chicken_hunter_scores');
+                if (stored) {
+                    currentLeaderboard = JSON.parse(stored);
+                } else {
+                    currentLeaderboard = [
+                        { name: "ABUELA", score: 250 },
+                        { name: "FER", score: 150 },
+                        { name: "CHICK", score: 50 }
+                    ];
+                }
             }
+            if (currentLeaderboard.length > 0) globalHighScore = currentLeaderboard[0].score;
             renderLeaderboardLists();
         }
 
-        function saveScore(name, finalScore) {
-            if(name === "ANÓNIMO" || name === "") return;
-            currentLeaderboard.push({ name: name, score: finalScore });
+        async function saveScore(playerName, playerScore) {
+            if (playerScore <= 0) return;
+
+            const newRecord = { name: playerName, score: playerScore };
+            
+            // 1. Envío Online al Servidor backend
+            try {
+                await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newRecord)
+                });
+            } catch (e) {
+                console.log("No se pudo guardar online, guardando localmente.");
+            }
+
+            // 2. Actualización de respaldo Local
+            currentLeaderboard.push(newRecord);
             currentLeaderboard.sort((a, b) => b.score - a.score);
-            if (currentLeaderboard.length > 10) currentLeaderboard.pop(); // Guardar solo el Top 10
+            currentLeaderboard = currentLeaderboard.slice(0, 10); // Mantener el Top 10
+            
             localStorage.setItem('chicken_hunter_scores', JSON.stringify(currentLeaderboard));
-            globalHighScore = currentLeaderboard[0].score;
+            if (currentLeaderboard.length > 0) globalHighScore = currentLeaderboard[0].score;
+            
             renderLeaderboardLists();
         }
 
         function renderLeaderboardLists() {
-            const sidebar = document.getElementById('sidebar-list');
+            const sidebarList = document.getElementById('sidebar-list');
             const menuList = document.getElementById('menu-score-list');
             
             let htmlContent = "";
             currentLeaderboard.forEach((item, index) => {
-                let isTop = index < 3 ? "top-three" : "";
-                htmlContent += `<li class="score-item ${isTop}">
-                    <span>${index + 1}. ${item.name}</span>
-                    <span>${String(item.score).padStart(4, '0')}</span>
-                </li>`;
+                const isTop = index < 3 ? "top-three" : "";
+                htmlContent += `<li class="score-item ${isTop}"><span>${index + 1}. ${item.name}</span><span>${item.score}</span></li>`;
             });
 
-            if(sidebar) sidebar.innerHTML = htmlContent;
+            if(sidebarList) sidebarList.innerHTML = htmlContent;
             if(menuList) menuList.innerHTML = htmlContent;
         }
     </script>
