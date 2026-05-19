@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chicken Hunter - Ultimate Arcade Edition</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            touch-action: none; /* Evita zooms raros en celular */
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            gap: 15px;
+            padding: 10px;
+            flex-direction: row;
+        }
+        
+        /* CONTENEDOR RESPONSIVO */
+        #game-container {
+            width: 800px;
+            height: 600px;
+            position: relative;
+            border: 6px solid #ffcc00;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            overflow: hidden;
+            background-color: #333;
+        }
+        
+        #game-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('mi_bosque2.png');
+            background-size: cover;
+            background-position: center;
+        }
+        
+        /* PANEL DE RÉCORDS LATERAL */
+        #sidebar-scores {
+            width: 240px;
+            height: 600px;
+            background-color: #000;
+            border: 6px solid #333;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            padding: 15px;
+            color: white;
+            display: flex;
+            flex-direction: column;
+        }
+        #sidebar-scores h2 {
+            text-align: center;
+            color: #ffcc00;
+            font-size: 1.4rem;
+            margin-top: 0;
+            border-bottom: 3px double #ffcc00;
+            padding-bottom: 10px;
+        }
+        .score-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        .score-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 5px;
+            border-bottom: 1px dashed #444;
+            font-size: 1rem;
+        }
+        .score-item.top-three {
+            color: #00ffcc;
+            font-weight: bold;
+        }
+
+        /* PANTALLAS */
+        .screen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.88);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .screen h1 {
+            font-size: 3rem;
+            color: #ff3300;
+            margin: 0 0 10px 0;
+            text-shadow: 3px 3px #ffcc00;
+            letter-spacing: 2px;
+        }
+        .screen p {
+            font-size: 1.1rem;
+            color: #ddd;
+            margin-bottom: 15px;
+        }
+        
+        .retro-input {
+            background: #222;
+            border: 3px solid #ffcc00;
+            padding: 8px;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            font-size: 1.2rem;
+            text-align: center;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            width: 220px;
+        }
+        .retro-input:focus { outline: none; background: #333; }
+
+        .btn {
+            padding: 10px 25px;
+            font-size: 1.2rem;
+            background-color: #ff9900;
+            color: white;
+            border: 3px solid #fff;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 5px #b36b00;
+            margin: 6px;
+        }
+        .btn:hover { background-color: #ffaa22; }
+        .btn:active {
+            box-shadow: 0 2px #b36b00;
+            transform: translateY(3px);
+        }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+            z-index: 5;
+        }
+        .hud-panel {
+            background-color: #000;
+            border: 3px solid #ffcc00;
+            padding: 6px 12px;
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: bold;
+            box-shadow: 3px 3px 0px #000;
+        }
+        #lives-panel { color: #ff3366; }
+        #timer-panel { color: #00ffcc; }
+        #score-container-hud { display: flex; flex-direction: column; gap: 4px; }
+        
+        #btn-pause-trigger {
+            pointer-events: auto;
+            background-color: #333;
+            border: 2px solid #fff;
+            color: white;
+            font-weight: bold;
+            font-size: 1rem;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+
+        #record-alert {
+            position: absolute;
+            top: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #ffcc00;
+            color: #000;
+            padding: 5px 15px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            border: 2px solid #fff;
+            box-shadow: 3px 3px 0 #000;
+            display: none;
+            z-index: 4;
+            animation: blink 0.5s infinite alternate;
+        }
+        @keyframes blink { from { opacity: 1; } to { opacity: 0.5; } }
+
+        /* RESPONSIVIDAD PARA PANTALLAS CHICAS / MÓVILES */
+        @media (max-width: 1100px) {
+            body {
+                flex-direction: column;
+                overflow-y: auto;
+                justify-content: flex-start;
+            }
+            #game-container {
+                width: 100%;
+                max-width: 800px;
+                height: auto;
+                aspect-ratio: 4 / 3;
+            }
+            #sidebar-scores {
+                width: 100%;
+                max-width: 800px;
+                height: 250px;
+            }
+        }
+        @media (max-width: 600px) {
+            .screen h1 { font-size: 2rem; }
+            .btn { font-size: 1rem; padding: 8px 16px; }
+            .hud-panel { font-size: 0.85rem; padding: 4px 8px; }
+            #btn-pause-trigger { font-size: 0.85rem; padding: 4px 8px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="game-canvas" width="800" height="600"></canvas>
+
+        <div id="record-alert">⭐ ¡NUEVO RÉCORD! ⭐</div>
+
+        <div id="hud">
+            <div id="score-container-hud">
+                <div class="hud-panel" id="p1-hud">P1 SCORE: <span id="score-val">0000</span></div>
+                <div class="hud-panel" id="p2-hud" style="display: none; color: #00ffcc;">P2 SCORE: 0000</div>
+            </div>
+            <button id="btn-pause-trigger" onclick="togglePause()">PAUSA</button>
+            <div id="timer-panel" class="hud-panel">TIEMPO: <span id="timer-val">60</span>s</div>
+            <div id="lives-panel" class="hud-panel">❤️❤️❤️</div>
+        </div>
+
+        <div id="start-screen" class="screen">
+            <h1>CHICKEN HUNTER</h1>
+            <p>Estilo Pixel Art • Defiende el bosque otoñal</p>
+            
+            <div id="name-inputs-wrapper" style="display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;">
+                <div style="display: flex; flex-direction: column; align-items: center;">
+                    <label style="color: #ffcc00; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem;">CAZADOR 1 (MIRA/CLICK):</label>
+                    <input type="text" id="player-name" class="retro-input" maxlength="10" value="PLAYER 1">
+                </div>
+                <div id="p2-name-box" style="display: none; flex-direction: column; align-items: center;">
+                    <label style="color: #00ffcc; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem;">CAZADOR 2 (WASD + ESPACIO):</label>
+                    <input type="text" id="player2-name" class="retro-input" maxlength="10" value="PLAYER 2" style="border-color: #00ffcc;">
+                </div>
+            </div>
+
+            <div style="margin-top: 10px;">
+                <button class="btn" onclick="setMode(false)">SOLO</button>
+                <button class="btn" onclick="setMode(true)" style="background-color: #0099ff; box-shadow: 0 5px #0066cc;">2 JUGADORES (LOCAL)</button>
+            </div>
+            <div>
+                <button class="btn" style="background-color: #555; box-shadow: 0 5px #333;" onclick="showScoresMenu()">VER SCORES</button>
+            </div>
+        </div>
+
+        <div id="pause-screen" class="screen" style="display: none; background-color: rgba(0,0,0,0.75);">
+            <h1 style="color: #00ffcc; text-shadow: 4px 4px #000;">PAUSA</h1>
+            <button class="btn" onclick="togglePause()">REANUDAR</button>
+            <button class="btn" onclick="restartCurrentGame()">REINICIAR</button>
+            <button class="btn" onclick="goToMenu()">IR AL MENÚ</button>
+        </div>
+
+        <div id="scores-screen" class="screen" style="display: none;">
+            <h1 style="color: #ffcc00; text-shadow: 4px 4px #000;">TOP CAZADORES</h1>
+            <div style="width: 320px; max-height: 250px; overflow-y: auto; margin-bottom: 20px; background: rgba(0,0,0,0.5); border: 2px solid #555; padding: 10px;">
+                <ul id="menu-score-list" class="score-list"></ul>
+            </div>
+            <button class="btn" onclick="hideScoresMenu()">VOLVER</button>
+        </div>
+
+        <div id="game-over-screen" class="screen" style="display: none; background-color: rgba(80, 0, 0, 0.9);">
+            <h1 style="color: #ff3333; text-shadow: 4px 4px #000;">GAME OVER</h1>
+            <p id="go-msg">¡Te venció el poder aviar!</p>
+            <div id="go-results" style="font-size: 1.3rem; margin-bottom: 15px;"></div>
+            <button class="btn" onclick="initGame()">REINTENTAR</button>
+            <button class="btn" onclick="goToMenu()">MENÚ</button>
+        </div>
+
+        <div id="victory-screen" class="screen" style="display: none; background-color: rgba(0, 60, 0, 0.9);">
+            <h1 style="color: #00ff66; text-shadow: 4px 4px #000;">¡VICTORIA!</h1>
+            <p>¡Caldo de gallina asegurado para todos!</p>
+            <div id="vic-results" style="font-size: 1.3rem; margin-bottom: 15px;"></div>
+            <button class="btn" onclick="initGame()">JUGAR DE NUEVO</button>
+            <button class="btn" onclick="goToMenu()">MENÚ</button>
+        </div>
+    </div>
+
+    <div id="sidebar-scores">
+        <h2>🏆 TOP SCORES</h2>
+        <ul id="sidebar-list" class="score-list"></ul>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Screens
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const victoryScreen = document.getElementById('victory-screen');
+        const pauseScreen = document.getElementById('pause-screen');
+        const scoresScreen = document.getElementById('scores-screen');
+        
+        // HUD
+        const scoreVal = document.getElementById('score-val');
+        const p2Hud = document.getElementById('p2-hud');
+        const timerVal = document.getElementById('timer-val');
+        const livesPanel = document.getElementById('lives-panel');
+        const recordAlert = document.getElementById('record-alert');
+        const nameInput = document.getElementById('player-name');
+        const name2Input = document.getElementById('player2-name');
+        const p2NameBox = document.getElementById('p2-name-box');
+
+        let score, p2Score, lives, timeLeft, isPlaying, isPaused;
+        let chickens = []; let hearts = []; let particles = [];
+        let lastSpawnTime = 0; let lastHeartSpawnTime = 0;
+        let spawnInterval = 1200; let gameTimerInterval;
+        let currentLeaderboard = []; let globalHighScore = 0;
+        let recordBrokenEventTriggered = false;
+        
+        let isMultiplayer = false;
+        let activeName1 = "PLAYER 1";
+        let activeName2 = "PLAYER 2";
+
+        // Coordenadas Mira Virtual Jugador 2 (Teclado)
+        let p2Mira = { x: 500, y: 300, size: 30, speed: 8 };
+        let keys = {};
+
+        const abuela = { x: 400, y: 530, width: 50, height: 70 };
+
+        // --- SISTEMA AUDIO SINTETIZADOR DE EFECTOS RETRO ---
+        let audioCtx = null;
+        let bgmInterval = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            try {
+                let osc = audioCtx.createOscillator();
+                let gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                let now = audioCtx.currentTime;
+
+                if (type === 'shot') { // Sonido Escopeta
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now); osc.stop(now + 0.3);
+                } 
+                else if (type === 'chicken') { // Sonido Gallina Asustada
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(600, now);
+                    osc.frequency.setValueAtTime(900, now + 0.08);
+                    osc.frequency.linearRampToValueAtTime(400, now + 0.2);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                    osc.start(now); osc.stop(now + 0.2);
+                } 
+                else if (type === 'heart') { // Agarrar Vida
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.setValueAtTime(600, now + 0.1);
+                    osc.frequency.setValueAtTime(900, now + 0.2);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.35);
+                    osc.start(now); osc.stop(now + 0.35);
+                } 
+                else if (type === 'gameover') { // Derrota
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(200, now);
+                    osc.frequency.linearRampToValueAtTime(50, now + 0.8);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.8);
+                    osc.start(now); osc.stop(now + 0.8);
+                }
+            } catch(e) { console.log(e); }
+        }
+
+        // Música de Fondo Estilo "8-bit Caza Marcha" muy suave
+        function startBGM() {
+            stopBGM();
+            let noteIndex = 0;
+            // Notas base repetitivas alegres de marcha retro
+            let notes = [150, 180, 150, 220, 200, 180, 150, 130]; 
+            
+            bgmInterval = setInterval(() => {
+                if (!isPlaying || isPaused || !audioCtx) return;
+                try {
+                    let osc = audioCtx.createOscillator();
+                    let gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    
+                    osc.type = 'triangle'; // Sonido suave amortiguado
+                    osc.frequency.setValueAtTime(notes[noteIndex % notes.length], audioCtx.currentTime);
+                    
+                    gain.gain.setValueAtTime(0.04, audioCtx.currentTime); // Volumen bajo de fondo
+                    gain.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+                    
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.25);
+                    noteIndex++;
+                } catch(e){}
+            }, 300);
+        }
+
+        function stopBGM() {
+            if (bgmInterval) clearInterval(bgmInterval);
+        }
+
+        // --- MANEJO DE SELECCIÓN DE MODO DE JUEGO ---
+        function setMode(multi) {
+            initAudio();
+            isMultiplayer = multi;
+            if (isMultiplayer) {
+                p2NameBox.style.display = 'flex';
+                p2Hud.style.display = 'block';
+                // Cambiar el valor por defecto si es primera vez
+                if(nameInput.value === "PLAYER 1") nameInput.value = "CAZADOR 1";
+            } else {
+                p2NameBox.style.display = 'none';
+                p2Hud.style.display = 'none';
+            }
+            initGame();
+        }
+
+        loadLeaderboard();
+
+        function initGame() {
+            activeName1 = nameInput.value.trim().toUpperCase() || "JUGADOR 1";
+            activeName2 = name2Input.value.trim().toUpperCase() || "JUGADOR 2";
+
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            victoryScreen.style.display = 'none';
+            pauseScreen.style.display = 'none';
+            scoresScreen.style.display = 'none';
+
+            score = 0;
+            p2Score = 0;
+            lives = 3;
+            timeLeft = 60; 
+            isPlaying = true;
+            isPaused = false;
+            recordBrokenEventTriggered = false;
+            recordAlert.style.display = 'none';
+            chickens = []; hearts = []; particles = [];
+            spawnInterval = 1200;
+            
+            lastSpawnTime = performance.now();
+            lastHeartSpawnTime = performance.now();
+
+            p2Mira.x = 500; p2Mira.y = 300; // Reset posición mira P2
+
+            updateHUD();
+            startTimer();
+            startBGM();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startTimer() {
+            clearInterval(gameTimerInterval);
+            gameTimerInterval = setInterval(() => {
+                if (!isPlaying || isPaused) return;
+                timeLeft--;
+                timerVal.innerText = timeLeft;
+                if (spawnInterval > 450) spawnInterval -= 15;
+                if (timeLeft <= 0) endGame(true); 
+            }, 1000);
+        }
+
+        function updateHUD() {
+            scoreVal.innerText = String(score).padStart(4, '0');
+            if (isMultiplayer) {
+                document.getElementById('p1-hud').innerHTML = `${activeName1}: <span id='score-val'>${String(score).padStart(4,'0')}</span>`;
+                p2Hud.innerHTML = `${activeName2}: ${String(p2Score).padStart(4, '0')}`;
+                p2Hud.style.display = 'block';
+            } else {
+                document.getElementById('p1-hud').innerHTML = `SCORE: <span id='score-val'>${String(score).padStart(4,'0')}</span>`;
+                p2Hud.style.display = 'none';
+            }
+            
+            timerVal.innerText = timeLeft;
+            let hStr = '';
+            for(let i=0; i<lives; i++) hStr += '❤️';
+            livesPanel.innerText = hStr || '💀';
+
+            // Alerta de récord en vivo
+            let maxActual = Math.max(score, p2Score);
+            if (maxActual > globalHighScore && globalHighScore > 0 && !recordBrokenEventTriggered) {
+                recordBrokenEventTriggered = true;
+                recordAlert.style.display = 'block';
+            }
+        }
+
+        function togglePause() {
+            if (!isPlaying) return;
+            isPaused = !isPaused;
+            if (isPaused) {
+                pauseScreen.style.display = 'flex';
+            } else {
+                pauseScreen.style.display = 'none';
+                lastSpawnTime = performance.now();
+                lastHeartSpawnTime = performance.now();
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function restartCurrentGame() { initGame(); }
+
+        function goToMenu() {
+            isPlaying = false; isPaused = false;
+            stopBGM();
+            clearInterval(gameTimerInterval);
+            pauseScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            victoryScreen.style.display = 'none';
+            startScreen.style.display = 'flex';
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function showScoresMenu() { renderLeaderboardLists(); scoresScreen.style.display = 'flex'; }
+        function hideScoresMenu() { scoresScreen.style.display = 'none'; }
+
+        // --- CAPTURA DE TECLADO (MIRA VIRTUAL JUGADOR 2) ---
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code === 'Space' && isPlaying && !isPaused && isMultiplayer) {
+                e.preventDefault(); // Evita scroll de pantalla
+                executePlayer2Shot();
+            }
+        });
+        window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+        function updateP2Mira() {
+            if (keys['KeyW'] || keys['ArrowUp']) p2Mira.y = Math.max(20, p2Mira.y - p2Mira.speed);
+            if (keys['KeyS'] || keys['ArrowDown']) p2Mira.y = Math.min(580, p2Mira.y + p2Mira.speed);
+            if (keys['KeyA'] || keys['ArrowLeft']) p2Mira.x = Math.max(20, p2Mira.x - p2Mira.speed);
+            if (keys['KeyD'] || keys['ArrowRight']) p2Mira.x = Math.min(780, p2Mira.x + p2Mira.speed);
+        }
+
+        function executePlayer2Shot() {
+            playSound('shot');
+            createExplosion(p2Mira.x, p2Mira.y, "0, 255, 204", 15);
+
+            chickens.forEach((ch) => {
+                if (!ch.isDead && Math.abs(p2Mira.x - ch.x) < 25 && Math.abs(p2Mira.y - ch.y) < 25) {
+                    ch.isDead = true; ch.vy = 5; ch.vx = (Math.random() * 4 - 2);
+                    p2Score += 15;
+                    playSound('chicken');
+                    updateHUD();
+                    createExplosion(ch.x, ch.y, "255, 255, 255", 20);
+                }
+            });
+
+            hearts.forEach((h, index) => {
+                if (Math.abs(p2Mira.x - h.x) < 25 && Math.abs(p2Mira.y - h.y) < 25) {
+                    hearts.splice(index, 1);
+                    playSound('heart');
+                    if (lives < 3) { lives++; updateHUD(); createExplosion(h.x, h.y, "255, 51, 102", 25); }
+                }
+            });
+        }
+
+        // --- BUCLE PRINCIPAL ---
+        function gameLoop(timestamp) {
+            if (!isPlaying || isPaused) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (isMultiplayer) updateP2Mira();
+
+            if (timestamp - lastSpawnTime > spawnInterval) { spawnChicken(); lastSpawnTime = timestamp; }
+            if (timestamp - lastHeartSpawnTime > 13000) { if (lives < 3) spawnHeart(); lastHeartSpawnTime = timestamp; }
+
+            // 1. Partículas
+            particles.forEach((p, idx) => {
+                p.x += p.vx; p.y += p.vy; p.alpha -= 0.02;
+                if (p.alpha <= 0) particles.splice(idx, 1);
+                else { ctx.fillStyle = `rgba(${p.color}, ${p.alpha})`; ctx.fillRect(p.x, p.y, p.size, p.size); }
+            });
+
+            // 2. Gallinas
+            chickens.forEach((ch, index) => {
+                ch.x += ch.vx; ch.y += ch.vy;
+                let flap = Math.sin(timestamp * 0.02) * 5;
+                ctx.fillStyle = ch.isDead ? "#d2691e" : "#ffffff"; 
+                ctx.fillRect(ch.x - 15, ch.y - 15 + flap, 30, 30); 
+                ctx.fillStyle = "#ffcc00"; ctx.fillRect(ch.x + 10, ch.y - 10 + flap, 8, 8); 
+                ctx.fillStyle = "#ff3300"; ctx.fillRect(ch.x - 5, ch.y - 23 + flap, 12, 8); 
+
+                if (ch.y < 50 && !ch.isDead) { chickens.splice(index, 1); hitAbuela(); }
+                if (ch.isDead && ch.y > 600) chickens.splice(index, 1);
+            });
+
+            // 3. Corazones
+            hearts.forEach((h, index) => {
+                h.y += h.speed;
+                ctx.fillStyle = "#ff3366";
+                ctx.fillRect(h.x - 10, h.y - 10, 10, 10); ctx.fillRect(h.x, h.y - 10, 10, 10);
+                ctx.fillRect(h.x - 15, h.y, 30, 10); ctx.fillRect(h.x - 10, h.y + 10, 20, 10);
+                if (h.y > 510) hearts.splice(index, 1); 
+            });
+
+            // 4. Abuelita
+            ctx.fillStyle = "#9966cc"; ctx.fillRect(abuela.x - 20, abuela.y, 40, 50);
+            ctx.fillStyle = "#ffdbac"; ctx.fillRect(abuela.x - 12, abuela.y - 25, 24, 25);
+            ctx.fillStyle = "#dddddd"; ctx.fillRect(abuela.x - 15, abuela.y - 33, 30, 12);
+            ctx.fillStyle = "#555555"; ctx.fillRect(abuela.x + 5, abuela.y + 10, 35, 8); 
+
+            // 5. Dibujar Mira del Jugador 2 (Si aplica)
+            if (isMultiplayer) {
+                ctx.strokeStyle = "#00ffcc"; ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(p2Mira.x, p2Mira.y, p2Mira.size / 2, 0, Math.PI * 2);
+                ctx.moveTo(p2Mira.x - p2Mira.size, p2Mira.y); ctx.lineTo(p2Mira.x + p2Mira.size, p2Mira.y);
+                ctx.moveTo(p2Mira.x, p2Mira.y - p2Mira.size); ctx.lineTo(p2Mira.x, p2Mira.y + p2Mira.size);
+                ctx.stroke();
+                // Nombre indicador arriba de su mira
+                ctx.fillStyle = "#00ffcc"; ctx.font = "bold 12px monospace";
+                ctx.fillText(activeName2, p2Mira.x - 25, p2Mira.y - 22);
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function spawnChicken() {
+            let startX = Math.random() * 700 + 50;
+            let targetX = 400 + (Math.random() * 300 - 150);
+            let speedMod = 0.6 + (60 - timeLeft) * 0.025; 
+            chickens.push({ x: startX, y: 500, vx: ((targetX - startX) / 150) * speedMod, vy: (-1.8 - Math.random() * 1.5) * speedMod, isDead: false });
+        }
+
+        function spawnHeart() { hearts.push({ x: Math.random() * 700 + 50, y: -20, speed: 1.5 + Math.random() * 1.5 }); }
+
+        // --- EVENTO DISPARO JUGADOR 1 (SOPORTA RATÓN Y TOQUES TÁCTILES) ---
+        function handleInputShot(clientX, clientY) {
+            if (!isPlaying || isPaused) return;
+            initAudio(); // Resguardo interacción navegadores
+
+            const rect = canvas.getBoundingClientRect();
+            // Regla de tres para escalar coordenadas por si la pantalla se achica responsivamente
+            const mouseX = ((clientX - rect.left) / rect.width) * canvas.width;
+            const mouseY = ((clientY - rect.top) / rect.height) * canvas.height;
+
+            playSound('shot');
+            createExplosion(mouseX, mouseY, "255, 204, 0", 15);
+
+            chickens.forEach((ch) => {
+                if (!ch.isDead && Math.abs(mouseX - ch.x) < 25 && Math.abs(mouseY - ch.y) < 25) {
+                    ch.isDead = true; ch.vy = 5; ch.vx = (Math.random() * 4 - 2);
+                    score += 15;
+                    playSound('chicken');
+                    updateHUD();
+                    createExplosion(ch.x, ch.y, "255, 255, 255", 20);
+                }
+            });
+
+            hearts.forEach((h, index) => {
+                if (Math.abs(mouseX - h.x) < 25 && Math.abs(mouseY - h.y) < 25) {
+                    hearts.splice(index, 1);
+                    playSound('heart');
+                    if (lives < 3) { lives++; updateHUD(); createExplosion(h.x, h.y, "255, 51, 102", 25); }
+                }
+            });
+        }
+
+        canvas.addEventListener('mousedown', (e) => { handleInputShot(e.clientX, e.clientY); });
+        canvas.addEventListener('touchstart', (e) => { 
+            if(e.touches.length > 0) handleInputShot(e.touches[0].clientX, e.touches[0].clientY); 
+        });
+
+        function createExplosion(x, y, colorRGB, count) {
+            for(let i=0; i<count; i++) {
+                particles.push({ x: x, y: y, vx: Math.random() * 6 - 3, vy: Math.random() * 6 - 3, alpha: 1, size: Math.random() * 4 + 2, color: colorRGB });
+            }
+        }
+
+        function hitAbuela() {
+            lives--; updateHUD();
+            createExplosion(abuela.x, abuela.y - 10, "255, 0, 0", 40);
+            if (lives <= 0) endGame(false);
+        }
+
+        function endGame(isVictory) {
+            isPlaying = false;
+            stopBGM();
+            clearInterval(gameTimerInterval);
+            playSound('gameover');
+            
+            if (isMultiplayer) {
+                saveScore(activeName1, score);
+                saveScore(activeName2, p2Score);
+                
+                let resultsHtml = `<p>${activeName1}: ${score} pts</p><p>${activeName2}: ${p2Score} pts</p>`;
+                if (score > p2Score) resultsHtml += `<h3 style='color:#ffcc00;'>🏆 ¡GANÓ ${activeName1}!</h3>`;
+                else if (p2Score > score) resultsHtml += `<h3 style='color:#00ffcc;'>🏆 ¡GANÓ ${activeName2}!</h3>`;
+                else resultsHtml += `<h3>¡EMPATE DE CAZADORES!</h3>`;
+
+                if (isVictory) {
+                    document.getElementById('vic-results').innerHTML = resultsHtml;
+                    victoryScreen.style.display = 'flex';
+                } else {
+                    document.getElementById('go-msg').innerText = "¡La abuela cayó en combate!";
+                    document.getElementById('go-results').innerHTML = resultsHtml;
+                    gameOverScreen.style.display = 'flex';
+                }
+            } else {
+                saveScore(activeName1, score);
+                let singleRes = `<p>Puntaje: ${score} pts</p>`;
+                if (isVictory) {
+                    document.getElementById('vic-results').innerHTML = singleRes;
+                    victoryScreen.style.display = 'flex';
+                } else {
+                    document.getElementById('go-msg').innerText = "¡Te venció el poder aviar!";
+                    document.getElementById('go-results').innerHTML = singleRes;
+                    gameOverScreen.style.display = 'flex';
+                }
+            }
+        }
+
+        // --- LOCALSTORAGE ---
+        function loadLeaderboard() {
+            const stored = localStorage.getItem('chicken_hunter_scores');
+            if (stored) {
+                currentLeaderboard = JSON.parse(stored);
+                if (currentLeaderboard.length > 0) globalHighScore = currentLeaderboard[0].score;
+            } else {
+                currentLeaderboard = [{ name: "ABUELA", score: 250 }, { name: "FER", score: 150 }, { name: "CHICK", score: 50 }];
+                localStorage.setItem('chicken_hunter_scores', JSON.stringify(currentLeaderboard));
+                globalHighScore = 250;
+            }
+            renderLeaderboardLists();
+        }
+
+        function saveScore(name, finalScore) {
+            if(name === "ANÓNIMO" || name === "") return;
+            currentLeaderboard.push({ name: name, score: finalScore });
+            currentLeaderboard.sort((a, b) => b.score - a.score);
+            if (currentLeaderboard.length > 15) currentLeaderboard.pop();
+            localStorage.setItem('chicken_hunter_scores', JSON.stringify(currentLeaderboard));
+            globalHighScore = currentLeaderboard[0].score;
+            renderLeaderboardLists();
+        }
+
+        function renderLeaderboardLists() {
+            const sidebar = document.getElementById('sidebar-list');
+            const menuList = document.getElementById('menu-score-list');
+            let htmlContent = "";
+            currentLeaderboard.forEach((entry, index) => {
+                const isTop = index < 3 ? "top-three" : "";
+                htmlContent += `<li class="score-item ${isTop}"><span>${index + 1}. ${entry.name}</span><span>${String(entry.score).padStart(4, '0')} pts</span></li>`;
+            });
+            sidebar.innerHTML = htmlContent;
+            menuList.innerHTML = htmlContent;
+        }
+    </script>
+</body>
+</html>
